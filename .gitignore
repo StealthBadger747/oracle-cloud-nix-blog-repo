@@ -1,0 +1,19 @@
+# macOS cruft
+.DS_Store
+
+# Direnv
+.direnv/
+.envrc
+
+# Nix build outputs
+result
+result-*
+
+# Terraform local state and plans
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/*.tfplan
+terraform/crash.log
+terraform/*.tfvars
+terraform/*.tfvars.json

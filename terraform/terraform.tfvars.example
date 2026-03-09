@@ -1,0 +1,14 @@
+# Rename to terraform.tfvars and fill with your values
+tenancy_ocid     = "ocid1.tenancy.oc1..example"
+compartment_ocid = "ocid1.compartment.oc1..example"
+namespace        = "my-namespace"
+# Terraform will create this bucket if it does not already exist.
+bucket_name      = "nixos-images"
+region           = "us-ashburn-1"
+ssh_authorized_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGvJ7EXvVEEar9mTg0Yy/hpsRisRtFPyKXHTpMNtigo7"
+
+# Optional: profile from ~/.oci/config
+# oci_profile = "DEFAULT"
+
+# Optional: override if you move the qcow2
+# local_image_path = "../result/nixos.qcow2"

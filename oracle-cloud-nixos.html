@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Erik Parawell</title>
+    <meta name="description" content="Erik Parawell's personal website">
+    <link rel="icon" type="image/png" sizes="1280x1278" href="assets/img/clipboard-image-12.png">
+    <link rel="icon" type="image/png" sizes="1280x1278" href="assets/img/clipboard-image-12.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Bitter:400,700">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=IBM+Plex+Mono">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lora">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Ubuntu+Mono">
+    <link rel="stylesheet" href="assets/css/styles.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.8.2/css/lightbox.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .code-block-wrapper {
+            position: relative;
+            margin: 1em 0;
+        }
+        .copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 6px 12px;
+            background: #2d2d2d;
+            color: #fff;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+        .copy-button:hover {
+            background: #3d3d3d;
+            border-color: #5a5a5a;
+        }
+        .copy-button.copied {
+            background: #28a745;
+            border-color: #28a745;
+        }
+        pre[class*="language-"] {
+            margin: 0;
+            border-radius: 4px;
+            padding: 1em 1em 1em 1em !important;
+        }
+        code[class*="language-"],
+        pre[class*="language-"] {
+            font-family: 'Cutive Mono', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        pre[class*="language-"] {
+            background: #2d2d2d !important;
+        }
+        pre code {
+            white-space: pre;
+            word-break: normal;
+            overflow-wrap: normal;
+        }
+    </style>
+<script src="/posthog.js"></script><script src="/cf-beacon.js" defer></script></head>
+
+<body>
+    <nav class="navbar navbar-light navbar-expand-md navigation-clean">
+        <div class="container"><a class="navbar-brand" href="#"><br></a><button data-toggle="collapse" class="navbar-toggler" data-target="#navcol-1"><span class="sr-only">Toggle navigation</span><span class="navbar-toggler-icon"></span></button>
+            <div class="collapse navbar-collapse" id="navcol-1"><a href="/"><img src="assets/img/clipboard-image-12.png" style="width: 12em;margin-left: 0em;margin-right: 22px;font-size: 9px;padding-left: 7px;"></a><a href="/" style="color: var(--gray-dark);font-size: 2em;">$ cd /home</a>
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item"></li>
+                    <li class="nav-item"><a class="nav-link" href="#"></a></li>
+                    <li class="nav-item"><a class="nav-link" href="#"></a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <section class="article-dual-column">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-10 offset-md-1">
+                    <div class="intro">
+                        <h1 class="text-center">Deploying NixOS to Oracle Cloud Free Tier ARM Instances</h1>
+                        <p class="text-center"><span class="by">by</span> <a href="#">Erik Parawell</a><span class="date"> on November 6th, 2025</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="row justify-content-center">
+                <div class="col-md-10 col-lg-7 offset-md-1 offset-lg-0">
+                    <div class="text">
+                        <h2 id="project-motivation">Project Motivation</h2>
+                        <p>Oracle Cloud's free tier offers 4 ARM cores, 24GB RAM, and 200GB storage. I wanted to deploy NixOS instances there for testing and development. The deployment process should be fully automated with Terraform rather than requiring manual configuration through the Oracle console.</p>
+                        <p>Most existing guides for deploying custom images to Oracle Cloud cover the basic steps but miss critical configuration requirements for ARM instances. This resulted in shape compatibility errors when attempting to launch A1.Flex instances with custom NixOS images.</p>
+                        <p>One important limitation up front: this workflow relies on importing a custom image, and custom images are not an Always Free-eligible image type. In practice that means you need either a paid account or a Free Trial account with credits remaining before Oracle will let you launch from the imported image.</p>
+
+                        <h2 id="project-goals">Project Goals</h2>
+                        <p>The goals for this deployment were:</p>
+                        <p>&nbsp;1. Build a NixOS ARM64 image suitable for Oracle Cloud Infrastructure<br>
+                        &nbsp;2. Automate image upload and import using Terraform<br>
+                        &nbsp;3. Configure shape compatibility for A1.Flex instances<br>
+                        &nbsp;4. Set proper image capabilities for boot firmware and virtualization<br>
+                        &nbsp;5. Launch instances without manual console intervention</p>
+
+                        <h2 id="system-architecture">The Shape Compatibility Issue</h2>
+                        <p>Oracle Cloud requires two separate configuration steps for custom images that aren't immediately obvious:</p>
+                        <p><strong>Shape Compatibility Registration</strong><br>
+                        Custom images must explicitly declare which instance shapes they support. This is configured under Custom Images → "Edit details" → "Compatible Shapes" in the console. Without this registration, Oracle returns a "shape not compatible with image" error when attempting to launch instances.</p>
+                        <p><strong>Image Capabilities Metadata</strong><br>
+                        Images require metadata defining boot firmware type and virtualization mode. This is set under Custom Images → "Edit image capabilities". Incorrect settings result in instances that boot but become unresponsive.</p>
+                        <p>These settings exist in separate UI locations and both must be configured correctly for ARM instances. The Terraform provider includes resources to automate both steps.</p>
+
+                        <h2 id="building-the-image">Building the NixOS Image</h2>
+                        <p>NixOS includes an OCI image builder module. The flake configuration:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-nix">{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+  };
+
+  outputs = { self, nixpkgs }: {
+    nixosConfigurations.oci-base = nixpkgs.lib.nixosSystem {
+      system = "aarch64-linux";
+      modules = [
+        "${nixpkgs}/nixos/modules/virtualisation/oci-image.nix"
+        ./configuration.nix
+      ];
+    };
+
+    packages.aarch64-linux.default =
+      self.nixosConfigurations.oci-base.config.system.build.OCIImage;
+  };
+}</code></pre>
+                        </div>
+                        <p>A minimal <span style="background-color: #f0f0f0;font-weight: normal;font-family: 'Cutive Mono', monospace;padding-top: 1px;padding-bottom: 1px;">configuration.nix</span>:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-nix">{ config, pkgs, ... }: {
+  system.stateVersion = "25.05";
+
+  services.openssh = {
+    enable = true;
+    settings = {
+      PasswordAuthentication = false;
+      PermitRootLogin = "no";
+    };
+  };
+
+  services.cloud-init.enable = true;
+
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 22 ];
+  };
+
+  users.users.nixos = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3... your-key-here"
+    ];
+  };
+
+  security.sudo.wheelNeedsPassword = false;
+}</code></pre>
+                        </div>
+                        <p>Building the image:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-bash"># On ARM hardware
+$ nix build .#
+
+# Cross-compile from x86_64
+$ nix build .#packages.aarch64-linux.default</code></pre>
+                        </div>
+                        <p>Cross-compilation requires ARM emulation on the build host:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-nix">boot.binfmt.emulatedSystems = [ "aarch64-linux" ];</code></pre>
+                        </div>
+                        <p>The build produces <span style="background-color: #f0f0f0;font-weight: normal;font-family: 'Cutive Mono', monospace;padding-top: 1px;padding-bottom: 1px;">result/nixos.qcow2</span>.</p>
+
+                        <h2 id="terraform-configuration">Terraform Configuration</h2>
+                        <p>The Terraform configuration handles image upload, import, shape compatibility registration, and image capabilities.</p>
+                        <p><strong>Image Upload and Import</strong></p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-hcl"># Create a bucket for image uploads
+resource "oci_objectstorage_bucket" "nixos_bucket" {
+  compartment_id = var.compartment_ocid
+  namespace      = var.namespace
+  name           = var.bucket_name
+  access_type    = "NoPublicAccess"
+}
+
+# Upload image to Object Storage
+resource "oci_objectstorage_object" "nixos_image" {
+  bucket    = oci_objectstorage_bucket.nixos_bucket.name
+  namespace = var.namespace
+  object    = "nixos-aarch64.qcow2"
+  source    = "./result/nixos.qcow2"
+}
+
+# Import as custom OCI image
+resource "oci_core_image" "nixos" {
+  compartment_id = var.compartment_ocid
+  display_name   = "NixOS ARM64"
+
+  image_source_details {
+    source_type    = "objectStorageTuple"
+    namespace_name = var.namespace
+    bucket_name    = oci_objectstorage_bucket.nixos_bucket.name
+    object_name    = oci_objectstorage_object.nixos_image.object
+  }
+
+  launch_mode = "PARAVIRTUALIZED"
+
+  timeouts {
+    create = "60m"
+  }
+}</code></pre>
+                        </div>
+                        <p>If you already have a bucket you want to reuse, you can switch this resource back to a <span style="background-color: #f0f0f0;font-weight: normal;font-family: 'Cutive Mono', monospace;padding-top: 1px;padding-bottom: 1px;">data &quot;oci_objectstorage_bucket&quot;</span> lookup. I prefer managing the bucket here because it removes one manual prerequisite from the example.</p>
+                        <p><strong>Shape Compatibility Registration</strong></p>
+                        <p>This resource registers the image with the A1.Flex shape:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-hcl">resource "oci_core_shape_management" "nixos_a1_compat" {
+  compartment_id = var.compartment_ocid
+  image_id       = oci_core_image.nixos.id
+  shape_name     = "VM.Standard.A1.Flex"
+
+  depends_on = [oci_core_image.nixos]
+}</code></pre>
+                        </div>
+                        <p>Without this resource, instance creation fails with shape compatibility errors.</p>
+                        <p><strong>Image Capabilities</strong></p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-hcl">resource "oci_core_compute_image_capability_schema" "nixos_caps" {
+  compartment_id = var.compartment_ocid
+  image_id       = oci_core_image.nixos.id
+  compute_global_image_capability_schema_version_name = "2024-03-27"
+
+  schema_data = {
+    "Compute.Firmware" = jsonencode({
+      descriptorType = "enumstring"
+      source         = "IMAGE"
+      defaultValue   = "UEFI_64"
+      values         = ["UEFI_64"]
+    })
+
+    "Compute.LaunchMode" = jsonencode({
+      descriptorType = "enumstring"
+      source         = "IMAGE"
+      defaultValue   = "PARAVIRTUALIZED"
+      values         = ["PARAVIRTUALIZED", "EMULATED", "CUSTOM", "NATIVE"]
+    })
+
+    "Storage.BootVolumeType" = jsonencode({
+      descriptorType = "enumstring"
+      source         = "IMAGE"
+      defaultValue   = "PARAVIRTUALIZED"
+      values         = ["PARAVIRTUALIZED", "ISCSI", "SCSI", "IDE", "NVME"]
+    })
+
+    "Network.AttachmentType" = jsonencode({
+      descriptorType = "enumstring"
+      source         = "IMAGE"
+      defaultValue   = "PARAVIRTUALIZED"
+      values         = ["PARAVIRTUALIZED", "E1000", "VFIO", "VDPA"]
+    })
+  }
+}</code></pre>
+                        </div>
+
+                        <h2 id="instance-launch">Instance Launch Configuration</h2>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-hcl">resource "oci_core_instance" "nixos" {
+  compartment_id      = var.compartment_ocid
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  shape               = "VM.Standard.A1.Flex"
+
+  shape_config {
+    memory_in_gbs = 24
+    ocpus         = 4
+  }
+
+  source_details {
+    source_type             = "image"
+    source_id               = oci_core_image.nixos.id
+    boot_volume_vpus_per_gb = 10
+  }
+
+  create_vnic_details {
+    subnet_id        = oci_core_subnet.public.id
+    assign_public_ip = true
+  }
+
+  launch_options {
+    network_type      = "PARAVIRTUALIZED"
+    boot_volume_type  = "PARAVIRTUALIZED"
+  }
+
+  depends_on = [
+    oci_core_shape_management.nixos_a1_compat,
+    oci_core_compute_image_capability_schema.nixos_caps
+  ]
+}</code></pre>
+                        </div>
+                        <p>The <span style="background-color: #f0f0f0;font-weight: normal;font-family: 'Cutive Mono', monospace;padding-top: 1px;padding-bottom: 1px;">depends_on</span> ensures shape compatibility and image capabilities are configured before instance creation.</p>
+
+                        <h2 id="deployment">Deployment Process</h2>
+                        <p>Create an Object Storage bucket in the Oracle console (Storage → Buckets → Create Bucket).</p>
+                        <p>Deploy the infrastructure:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-shell">$ cd terraform
+$ cat &gt; terraform.tfvars &lt;&lt;'EOF'
+tenancy_ocid     = "ocid1.tenancy.oc1..aaa..."
+compartment_ocid = "ocid1.compartment.oc1..aaa..."
+namespace        = "your-namespace"
+region           = "us-ashburn-1"
+EOF
+
+$ terraform init
+$ terraform plan
+$ terraform apply</code></pre>
+                        </div>
+                        <p>Image import typically takes 30-45 minutes. Once complete:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-shell">$ IP=$(terraform output -raw instance_ip)
+$ ssh nixos@$IP</code></pre>
+                        </div>
+
+                        <h2 id="troubleshooting">Troubleshooting</h2>
+                        <p><strong>Shape not compatible error</strong><br>
+                        Verify the shape management resource was created:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-shell">$ terraform state show oci_core_shape_management.nixos_a1_compat</code></pre>
+                        </div>
+                        <p>If missing, manually configure in the console: Custom Images → image → "Edit details" → "Compatible Shapes" → add VM.Standard.A1.Flex with min 1 OCPU / 6GB RAM and max 4 OCPU / 24GB RAM.</p>
+                        <p><strong>Instance boots but is unresponsive</strong><br>
+                        Rebuild image capabilities metadata: Custom Images → image → "Edit image capabilities" → Save without changes.</p>
+                        <p><strong>Build fails on x86_64</strong><br>
+                        Enable ARM emulation:</p>
+                        <div class="code-block-wrapper">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-nix">boot.binfmt.emulatedSystems = [ "aarch64-linux" ];</code></pre>
+                        </div>
+
+                        <h2 id="project-status">Project Status</h2>
+                        <p>The deployment process is now fully automated. NixOS instances can be deployed to Oracle Cloud's free tier ARM instances without manual console configuration.</p>
+                        <p><strong>What is working:</strong></p>
+                        <p>&nbsp;- Automated image build with Nix<br>
+                        &nbsp;- Image upload to Object Storage<br>
+                        &nbsp;- Shape compatibility registration via Terraform<br>
+                        &nbsp;- Image capabilities configuration<br>
+                        &nbsp;- Instance launch with proper dependencies</p>
+                        <p><strong>Key findings:</strong></p>
+                        <p>Shape compatibility registration is required for custom ARM images but not well documented. The <span style="background-color: #f0f0f0;font-weight: normal;font-family: 'Cutive Mono', monospace;padding-top: 1px;padding-bottom: 1px;">oci_core_shape_management</span> Terraform resource automates what would otherwise require manual UI configuration.</p>
+                        <p>Image capabilities metadata must be set correctly for instances to become accessible after boot. The <span style="background-color: #f0f0f0;font-weight: normal;font-family: 'Cutive Mono', monospace;padding-top: 1px;padding-bottom: 1px;">oci_core_compute_image_capability_schema</span> resource handles this configuration.</p>
+                        <p>With proper automation, Oracle Cloud's free tier provides 4 ARM cores and 24GB RAM suitable for development workloads and testing infrastructure.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.1/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.8.2/js/lightbox.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-shell-session.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nix.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-hcl.min.js"></script>
+    <script>
+        function copyCode(button) {
+            const codeBlock = button.nextElementSibling.querySelector('code');
+            const text = codeBlock.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+    </script>
+</body>
+
+</html>
