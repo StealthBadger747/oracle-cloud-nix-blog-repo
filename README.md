@@ -1,6 +1,8 @@
-# Oracle Cloud NixOS example
+# Oracle Cloud NixOS Companion Repo
 
-This repo accompanies the guide at https://erikparawell.com/oracle-cloud-nixos.html: build a NixOS ARM image, upload it to Oracle Cloud Object Storage, register shape compatibility and image capabilities, then launch an A1.Flex instance via Terraform.
+This repo is the companion example for the article at https://erikparawell.com/oracle-cloud-nixos.html.
+
+The blog post is the source of truth for the write-up and explanation. This repo only contains the reproducible example code and the minimal setup notes needed to run it.
 
 ## Prerequisites
 - `nix` with flakes enabled
